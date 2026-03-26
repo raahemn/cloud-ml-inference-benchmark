@@ -1,6 +1,7 @@
 .env
 venv/
 data/
+*.pth
 
 # From React App:
 # Logs
