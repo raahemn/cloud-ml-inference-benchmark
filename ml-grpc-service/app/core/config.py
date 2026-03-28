@@ -12,5 +12,8 @@ class Settings:
     )
     GCS_BUCKET: str = os.getenv("GCS_BUCKET", "cmpt756-resnet-models")
     GCS_MODEL_PATH: str = os.getenv("GCS_MODEL_PATH", "resnet_cifar10.pth")
+    LOCAL_MODEL_DIRECTORY: str = os.getenv("LOCAL_MODEL_DIRECTORY", "/Users/raahemnabeel/Desktop/CMPT756/cloud-ml-inference-benchmark/ml-grpc-service/ml-models")
+    PROJECT_ID: str = os.getenv("PROJECT_ID", "project-aa99c865-21ed-430c-aac")
+
 
 settings = Settings()
