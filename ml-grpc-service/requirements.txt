@@ -1,0 +1,7 @@
+grpcio 
+grpcio-tools  
+torch
+torchvision
+Pillow
+pillow-avif-plugin
+numpy<2

@@ -5,7 +5,7 @@ import torchvision.transforms as transforms
 from PIL import Image
 import pillow_avif
 from torchvision.models import resnet18
-from app.core.config import settings
+from config import settings
 
 class ResNetService:
     def __init__(self):
@@ -46,7 +46,7 @@ class ResNetService:
             print(f"Error loading model: {e}")
             raise
 
-    async def predict(self, image_bytes: bytes):
+    def predict(self, image_bytes: bytes):
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         input_tensor = self.preprocess(image).unsqueeze(0)
 
@@ -60,5 +60,5 @@ class ResNetService:
 
         return class_id, confidence, label
 
-# Singleton instance
 model_service = ResNetService()
+model_service.load_model()
