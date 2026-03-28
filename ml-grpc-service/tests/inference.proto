@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package inference;
+package app.proto;
 
 // The request message containing the image bytes
 message PredictRequest {

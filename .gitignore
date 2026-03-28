@@ -3,6 +3,8 @@ venv/
 data/
 *.pth
 
+__pycache__/
+
 # From React App:
 # Logs
 logs

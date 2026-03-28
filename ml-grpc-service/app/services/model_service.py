@@ -5,7 +5,8 @@ import torchvision.transforms as transforms
 from PIL import Image
 import pillow_avif
 from torchvision.models import resnet18
-from config import settings
+from app.core.config import settings
+from app.infrastructure.gcs_utils import download_model
 
 class ResNetService:
     def __init__(self):
@@ -24,6 +25,13 @@ class ResNetService:
 
     def load_model(self):
         try:
+            # Download the model from GCS
+            download_model(
+                settings.GCS_BUCKET,
+                settings.GCS_MODEL_PATH,
+                settings.LOCAL_MODEL_PATH
+            )
+
             # Create the shell
             self.model = resnet18(weights=None)
             
@@ -32,15 +40,15 @@ class ResNetService:
             self.model.fc = nn.Linear(num_ftrs, 10)
             
             # Load the weights
-            state_dict = torch.load(settings.MODEL_PATH, map_location=torch.device('cpu'))
+            state_dict = torch.load(settings.LOCAL_MODEL_PATH, map_location=torch.device('cpu'))
             self.model.load_state_dict(state_dict)
             
             # Set to evaluation mode
             self.model.eval()
-            print(f"Successfully loaded custom model from {settings.MODEL_PATH}")
+            print(f"Successfully loaded custom model from {settings.LOCAL_MODEL_PATH}")
             
         except FileNotFoundError:
-            print(f"Error: Model file not found at {settings.MODEL_PATH}")
+            print(f"Error: Model file not found at {settings.LOCAL_MODEL_PATH}")
             raise
         except Exception as e:
             print(f"Error loading model: {e}")

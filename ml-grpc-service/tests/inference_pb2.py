@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0finference.proto\x12\tinference\"$\n\x0ePredictRequest\x12\x12\n\nimage_data\x18\x01 \x01(\x0c\"F\n\x0fPredictResponse\x12\x10\n\x08\x63lass_id\x18\x01 \x01(\x05\x12\x12\n\nconfidence\x18\x02 \x01(\x02\x12\r\n\x05label\x18\x03 \x01(\t2T\n\x0eModelInference\x12\x42\n\x07Predict\x12\x19.inference.PredictRequest\x1a\x1a.inference.PredictResponse\"\x00\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0finference.proto\x12\tapp.proto\"$\n\x0ePredictRequest\x12\x12\n\nimage_data\x18\x01 \x01(\x0c\"F\n\x0fPredictResponse\x12\x10\n\x08\x63lass_id\x18\x01 \x01(\x05\x12\x12\n\nconfidence\x18\x02 \x01(\x02\x12\r\n\x05label\x18\x03 \x01(\t2T\n\x0eModelInference\x12\x42\n\x07Predict\x12\x19.app.proto.PredictRequest\x1a\x1a.app.proto.PredictResponse\"\x00\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)

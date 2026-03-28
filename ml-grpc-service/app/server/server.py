@@ -1,10 +1,10 @@
 import grpc
 from concurrent import futures
 
-import inference_pb2
-import inference_pb2_grpc
+from app.proto import inference_pb2
+from app.proto import inference_pb2_grpc
 
-from model_service import model_service
+from app.services.model_service import model_service
 
 
 class ModelInferenceServicer(inference_pb2_grpc.ModelInferenceServicer):
@@ -21,6 +21,7 @@ class ModelInferenceServicer(inference_pb2_grpc.ModelInferenceServicer):
 
             class_id, confidence, label = model_service.predict(image_bytes)
 
+            print("Sending response successfully!", class_id, confidence, label)
             return inference_pb2.PredictResponse(
                 class_id=class_id,
                 confidence=confidence,
@@ -46,7 +47,3 @@ def serve():
     print("gRPC Model Server running on port 50051")
 
     server.wait_for_termination()
-
-
-if __name__ == "__main__":
-    serve()

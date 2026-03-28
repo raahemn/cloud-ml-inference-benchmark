@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-import inference_pb2 as inference__pb2
+import app.proto.inference_pb2 as inference__pb2
 
 GRPC_GENERATED_VERSION = '1.78.0'
 GRPC_VERSION = grpc.__version__
@@ -36,7 +36,7 @@ class ModelInferenceStub(object):
             channel: A grpc.Channel.
         """
         self.Predict = channel.unary_unary(
-                '/inference.ModelInference/Predict',
+                '/app.proto.ModelInference/Predict',
                 request_serializer=inference__pb2.PredictRequest.SerializeToString,
                 response_deserializer=inference__pb2.PredictResponse.FromString,
                 _registered_method=True)
@@ -62,9 +62,9 @@ def add_ModelInferenceServicer_to_server(servicer, server):
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'inference.ModelInference', rpc_method_handlers)
+            'app.proto.ModelInference', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('inference.ModelInference', rpc_method_handlers)
+    server.add_registered_method_handlers('app.proto.ModelInference', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
@@ -86,7 +86,7 @@ class ModelInference(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/inference.ModelInference/Predict',
+            '/app.proto.ModelInference/Predict',
             inference__pb2.PredictRequest.SerializeToString,
             inference__pb2.PredictResponse.FromString,
             options,
