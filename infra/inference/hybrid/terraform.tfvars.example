@@ -1,0 +1,6 @@
+project_id                 = "my-gcp-project"
+region                     = "northamerica-northeast1"
+artifact_registry_location = "northamerica-northeast1"
+coordinator_image          = "northamerica-northeast1-docker.pkg.dev/my-gcp-project/inference-hybrid-images/coordinator:latest"
+grpc_model_image           = "northamerica-northeast1-docker.pkg.dev/my-gcp-project/inference-hybrid-images/grpc-model:latest"
+gke_grpc_endpoint          = "grpc-model.default.svc.cluster.local:50051"

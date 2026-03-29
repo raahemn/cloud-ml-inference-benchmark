@@ -1,0 +1,3 @@
+project_id                 = "my-gcp-project"
+region                     = "northamerica-northeast1"
+artifact_registry_location = "northamerica-northeast1"
