@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package app.proto;
+
+message PredictRequest {
+  bytes image_data = 1;
+}
+
+message PredictResponse {
+  int32 class_id = 1;
+  float confidence = 2;
+  string label = 3;
+}
+
+service ModelInference {
+  rpc Predict (PredictRequest) returns (PredictResponse) {}
+}

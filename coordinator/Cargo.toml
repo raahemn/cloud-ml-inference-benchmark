@@ -1,0 +1,16 @@
+[package]
+name = "ml-coordinator"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+actix-cors = "0.7"
+actix-multipart = "0.7"
+actix-web = "4"
+futures-util = "0.3"
+prost = "0.13"
+serde = { version = "1", features = ["derive"] }
+tonic = { version = "0.12", features = ["transport", "tls-native-roots"] }
+
+[build-dependencies]
+tonic-build = "0.12"

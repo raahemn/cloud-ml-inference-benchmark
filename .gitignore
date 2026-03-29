@@ -1,9 +1,15 @@
 .env
 venv/
+.venv/
 data/
 *.pth
 
 __pycache__/
+coordinator/target/
+.terraform/
+*.tfstate
+*.tfstate.*
+infra/inference/cloudrun/terraform.tfvars
 
 # From React App:
 # Logs
