@@ -1,0 +1,105 @@
+# Cloud Run inference pipeline
+# This pipeline does the full cloud-side flow for the `cloudrun` variant:
+# 1. build coordinator image
+# 2. push coordinator image
+# 3. build gRPC model image
+# 4. push gRPC model image
+# 5. initialize Terraform
+# 6. apply Terraform for Cloud Run + load balancer resources
+
+substitutions:
+  # Region where Cloud Run services and Artifact Registry live.
+  _REGION: northamerica-northeast1
+  _ARTIFACT_REGISTRY_LOCATION: northamerica-northeast1
+
+  # Artifact Registry repository that stores both service images.
+  _ARTIFACT_REPOSITORY: inference-cloudrun-images
+
+  # Terraform directory for the Cloud Run inference variant.
+  _TF_DIR: infra/inference/cloudrun
+
+steps:
+  # Step 1: Build the Rust coordinator image.
+  - name: gcr.io/cloud-builders/docker
+    id: build-coordinator-image
+    args:
+      - build
+      - -t
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:${SHORT_SHA}
+      - -t
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:latest
+      - ./coordinator
+
+  # Step 2: Push the immutable coordinator image for this commit.
+  - name: gcr.io/cloud-builders/docker
+    id: push-coordinator-image-sha
+    args:
+      - push
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:${SHORT_SHA}
+
+  # Step 3: Push the rolling `latest` coordinator image.
+  - name: gcr.io/cloud-builders/docker
+    id: push-coordinator-image-latest
+    args:
+      - push
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:latest
+
+  # Step 4: Build the Python gRPC model service image.
+  - name: gcr.io/cloud-builders/docker
+    id: build-grpc-model-image
+    args:
+      - build
+      - -t
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:${SHORT_SHA}
+      - -t
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:latest
+      - ./ml-grpc-service
+
+  # Step 5: Push the immutable gRPC model image for this commit.
+  - name: gcr.io/cloud-builders/docker
+    id: push-grpc-model-image-sha
+    args:
+      - push
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:${SHORT_SHA}
+
+  # Step 6: Push the rolling `latest` gRPC model image.
+  - name: gcr.io/cloud-builders/docker
+    id: push-grpc-model-image-latest
+    args:
+      - push
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:latest
+
+  # Step 7: Initialize Terraform in the Cloud Run inference directory.
+  - name: hashicorp/terraform:1.7.5
+    id: terraform-init
+    dir: ${_TF_DIR}
+    entrypoint: sh
+    args:
+      - -c
+      - terraform init
+
+  # Step 8: Apply Terraform using the images built in this pipeline run.
+  # This deploys:
+  # - inference-cloudrun-coordinator
+  # - inference-cloudrun-grpc-model
+  # - load balancer resources in front of the coordinator
+  - name: hashicorp/terraform:1.7.5
+    id: terraform-apply
+    dir: ${_TF_DIR}
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        terraform apply -auto-approve \
+          -var="project_id=$PROJECT_ID" \
+          -var="region=${_REGION}" \
+          -var="artifact_registry_location=${_ARTIFACT_REGISTRY_LOCATION}" \
+          -var="coordinator_image=${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:${SHORT_SHA}" \
+          -var="grpc_model_image=${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:${SHORT_SHA}"
+
+# Images recorded as build outputs for this run.
+images:
+  - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:${SHORT_SHA}
+  - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:latest
+  - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:${SHORT_SHA}
+  - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:latest

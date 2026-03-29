@@ -1,5 +1,8 @@
 import { useState } from 'react';
 
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? 'http://127.0.0.1:8000';
+
 function App() {
   const [image, setImage] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -57,16 +60,19 @@ function App() {
     formData.append('file', image);
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/predict', {
+      const response = await fetch(`${API_BASE_URL}/predict`, {
         method: 'POST',
         body: formData,
       });
 
       const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Error processing image.');
+      }
       setResult(data.label); 
     } catch (error) {
       console.error("Error classifying image:", error);
-      setResult("Error processing image.");
+      setResult(error.message || "Error processing image.");
     } finally {
       setLoading(false);
     }
