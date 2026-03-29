@@ -1,4 +1,5 @@
 import grpc
+import os
 from concurrent import futures
 
 from app.proto import inference_pb2
@@ -36,14 +37,15 @@ class ModelInferenceServicer(inference_pb2_grpc.ModelInferenceServicer):
 
 
 def serve():
+    port = int(os.getenv("PORT", "50051"))
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))     #set equivalent to no. of CPU cores
 
     inference_pb2_grpc.add_ModelInferenceServicer_to_server(
         ModelInferenceServicer(), server
     )
 
-    server.add_insecure_port('[::]:50051')  #we dont need TLS security for our use case especially since this isnt a public facing service
+    server.add_insecure_port(f'[::]:{port}')  # Cloud Run injects PORT; local runs can still use 50051.
     server.start()
-    print("gRPC Model Server running on port 50051")
+    print(f"gRPC Model Server running on port {port}")
 
     server.wait_for_termination()

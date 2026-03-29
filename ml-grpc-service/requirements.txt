@@ -6,3 +6,4 @@ Pillow
 pillow-avif-plugin
 numpy<2
 python-dotenv
+google-cloud-storage
