@@ -105,6 +105,13 @@ pub async fn predict(
 #[post("/training")]
 pub async fn upload_training_sample(
     state: web::Data<AppState>,
+    payload: Multipart,
+) -> impl Responder {
+    handle_training_sample_upload(state, payload).await
+}
+
+async fn handle_training_sample_upload(
+    state: web::Data<AppState>,
     mut payload: Multipart,
 ) -> impl Responder {
     // Flow T1:
