@@ -24,3 +24,8 @@ variable "subnet_cidr" {
   type    = string
   default = "10.20.0.0/24"
 }
+
+variable "training_bucket_location" {
+  type    = string
+  default = "northamerica-northeast1"
+}

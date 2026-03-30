@@ -8,6 +8,7 @@ module "common" {
   region                     = var.region
   variant                    = local.variant
   artifact_registry_location = var.artifact_registry_location
+  training_bucket_location   = var.region
 }
 
 module "grpc_model" {
@@ -30,6 +31,7 @@ module "coordinator" {
   env_vars = {
     COORDINATOR_BIND   = "0.0.0.0:8080"
     GRPC_INFERENCE_URL = module.grpc_model.uri
+    TRAINING_DATA_BUCKET = module.common.training_bucket_name
   }
 }
 

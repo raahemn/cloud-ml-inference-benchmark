@@ -8,6 +8,7 @@ module "common" {
   region                     = var.region
   variant                    = local.variant
   artifact_registry_location = var.artifact_registry_location
+  training_bucket_location   = var.region
   create_vpc                 = true
   subnet_cidr                = var.subnet_cidr
 }
@@ -29,8 +30,9 @@ module "coordinator" {
   image                 = var.coordinator_image
   service_account_email = module.common.coordinator_service_account_email
   env_vars = {
-    COORDINATOR_BIND  = "0.0.0.0:8080"
+    COORDINATOR_BIND   = "0.0.0.0:8080"
     GRPC_INFERENCE_URL = var.gke_grpc_endpoint
+    TRAINING_DATA_BUCKET = module.common.training_bucket_name
   }
 }
 

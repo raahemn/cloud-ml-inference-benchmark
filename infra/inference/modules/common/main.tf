@@ -11,6 +11,7 @@ locals {
     "monitoring.googleapis.com",
     "run.googleapis.com",
     "secretmanager.googleapis.com",
+    "storage.googleapis.com",
   ]
 }
 
@@ -63,6 +64,27 @@ resource "google_secret_manager_secret" "grpc_model_env" {
   }
 
   depends_on = [google_project_service.required]
+}
+
+resource "google_storage_bucket" "training_data" {
+  project                     = var.project_id
+  name                        = "${local.prefix}-training-data"
+  location                    = var.training_bucket_location
+  uniform_bucket_level_access = true
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_storage_bucket_iam_member" "coordinator_training_writer" {
+  bucket = google_storage_bucket.training_data.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.coordinator.email}"
+}
+
+resource "google_storage_bucket_iam_member" "grpc_model_training_reader" {
+  bucket = google_storage_bucket.training_data.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.grpc_model.email}"
 }
 
 resource "google_compute_network" "inference" {

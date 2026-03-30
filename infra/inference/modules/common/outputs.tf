@@ -26,6 +26,10 @@ output "grpc_model_secret_id" {
   value = google_secret_manager_secret.grpc_model_env.secret_id
 }
 
+output "training_bucket_name" {
+  value = google_storage_bucket.training_data.name
+}
+
 output "network_name" {
   value = var.create_vpc ? google_compute_network.inference[0].name : null
 }
