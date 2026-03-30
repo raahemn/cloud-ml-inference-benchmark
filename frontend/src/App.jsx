@@ -90,7 +90,7 @@ function App() {
     formData.append('label', labelInput);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/submit_data`, {
+      const response = await fetch(`${API_BASE_URL}/training`, {
         method: 'POST',
         body: formData,
       });
