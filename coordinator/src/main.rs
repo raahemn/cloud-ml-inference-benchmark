@@ -9,7 +9,7 @@ use actix_web::{web, App, HttpServer};
 use actix_cors::Cors;
 
 use crate::config::AppConfig;
-use crate::handlers::{health, predict, AppState};
+use crate::handlers::{health, predict, upload_training_sample, AppState};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -26,13 +26,14 @@ async fn main() -> std::io::Result<()> {
 
     // Flow 3:
     // Start the HTTP server and expose the main inference entry points:
-    // /predict and /health.
+    // /predict, /training-samples, and /health.
     HttpServer::new(move || {
         App::new()
             .wrap(Cors::permissive())
             .app_data(web::Data::new(state.clone()))
             .service(health)
             .service(predict)
+            .service(upload_training_sample)
     })
     .bind(bind_address)?
     .run()

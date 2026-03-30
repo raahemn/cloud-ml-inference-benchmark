@@ -17,3 +17,10 @@ pub struct HealthResponse {
     pub service: String,
     pub status: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrainingSampleResponse {
+    pub label: String,
+    pub saved_path: String,
+    pub bytes_written: usize,
+}
