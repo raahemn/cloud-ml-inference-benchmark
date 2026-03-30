@@ -1,5 +1,4 @@
 from google.cloud import storage
-import uuid
 from app.core.config import settings
 import io
 
