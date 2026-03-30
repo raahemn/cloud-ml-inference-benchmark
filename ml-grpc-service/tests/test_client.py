@@ -4,7 +4,7 @@ import inference_pb2_grpc
 
 def run():
     # Load image
-    with open("/Users/raahemnabeel/Downloads/131019910.jpg.avif", "rb") as f:
+    with open("/Users/raahemnabeel/Downloads/images-2.jpeg", "rb") as f:
         image_bytes = f.read()
 
     # Connect to server

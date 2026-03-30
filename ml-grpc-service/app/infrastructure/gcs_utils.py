@@ -1,23 +1,19 @@
 from google.cloud import storage
 import uuid
 from app.core.config import settings
+import io
 
-
-def download_model(bucket_name, source_blob_name):
-    unique_id = uuid.uuid4().hex[:8]
-
-    destination_file_name = f"{settings.LOCAL_MODEL_DIRECTORY}/model_{unique_id}.pth"
-
-    print(f"Downloading model {source_blob_name} from GCS...")
-    
+def fetch_model_bytes(bucket_name, source_blob_name):
+    print(f"Fetching {source_blob_name} from GCS into memory...")
     client = storage.Client()
     bucket = client.bucket(bucket_name)
     blob = bucket.blob(source_blob_name)
 
-    blob.download_to_filename(destination_file_name)
-
-    print(f"Model downloaded from GCS to {destination_file_name}")
-    return destination_file_name
+    # Downloads the entire file into a bytes object in RAM
+    model_data = blob.download_as_bytes()
+    
+    # Wrap it in a file-like object for PyTorch
+    return io.BytesIO(model_data)
 
 def get_latest_model_blob(bucket_name):
     client = storage.Client()

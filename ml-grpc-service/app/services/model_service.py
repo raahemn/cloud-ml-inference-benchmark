@@ -8,7 +8,7 @@ from PIL import Image
 import pillow_avif
 from torchvision.models import resnet18
 from app.core.config import settings
-from app.infrastructure.gcs_utils import download_model, get_latest_model_blob
+from app.infrastructure.gcs_utils import get_latest_model_blob, fetch_model_bytes
 import threading
 import os
 
@@ -16,7 +16,6 @@ class ResNetService:
     def __init__(self):
         self.model = None
         self._current_model_blob = None
-        self._current_local_path = None
         
         # CIFAR-10 specific normalization
         self.preprocess = transforms.Compose([
@@ -46,21 +45,28 @@ class ResNetService:
             if not latest_blob_name:
                 raise Exception("No model files found in GCS bucket!")
 
-            local_path = download_model(settings.GCS_BUCKET, latest_blob_name)
+            # Load from GCS directly to RAM
+            model_buffer = fetch_model_bytes(settings.GCS_BUCKET, latest_blob_name)
             
-            self.model = self.load_model_from_path(local_path)
+            self.model = self.load_model_from_stream(model_buffer)
             self._current_model_blob = latest_blob_name
-            self._current_local_path = local_path
 
-            print(f"Bootstrap complete. Serving from: {local_path}")
+            print(f"Bootstrap complete. Model loaded in memory: {latest_blob_name}")
         except Exception as e:
             print(f"CRITICAL: Bootstrap failed: {e}")
             raise e
 
     def _start_polling_worker(self):
         """Spawns a daemon thread to check for model updates every few minutes."""
-        polling_thread = threading.Thread(target=self._run_polling_loop, daemon=True)
-        polling_thread.start()
+        def low_priority_wrapper():
+            try:
+                os.nice(10)     # Makes our thread a low priority so we dont compromise inference
+            except AttributeError:
+                pass
+            self._run_polling_loop()
+
+        thread = threading.Thread(target=low_priority_wrapper, daemon=True)
+        thread.start()
         
     def _run_polling_loop(self):
         """
@@ -90,45 +96,39 @@ class ResNetService:
             time.sleep(base_interval + jitter)
         
     def trigger_model_update(self, gcs_blob_name):
-        # Phase 1: Background Work
-        # This downloads and loads the model into a completely different memory address
-        local_path = download_model(settings.GCS_BUCKET, gcs_blob_name)
-        new_model_object = self.load_model_from_path(local_path)
+        """Downloads weights into RAM and swaps the live model reference."""
+        try:
+            # Phase 1: Background Work (Network to RAM)
+            model_buffer = fetch_model_bytes(settings.GCS_BUCKET, gcs_blob_name)
+            new_model_object = self.load_model_from_stream(model_buffer)
 
-        # Phase 2: The Swap
-        # Incoming gRPC requests after this line use the new model.
-        self.model = new_model_object
-        old_path = self._current_local_path
-        self._current_local_path = local_path
+            # Phase 2: The Swap
+            self.model = new_model_object
+            self._current_model_blob = gcs_blob_name
 
-        # Phase 3: Cleanup
-        # Delete the old local file to save disk space
-        if old_path and os.path.exists(old_path):
-            os.remove(old_path)
-        
-        print(f"Successfully swapped to {gcs_blob_name}")
+            print(f"Successfully swapped to {gcs_blob_name} in memory.")
+        except Exception as e:
+            print(f"Background update failed: {e}")
 
-    def load_model_from_path(self, local_path):
+    def load_model_from_stream(self, model_stream):
+        """
+        Instantiates the ResNet shell and loads weights from a memory stream.
+        """
         try:
             # Create the architecture shell
             new_model = resnet18(weights=None)
             num_ftrs = new_model.fc.in_features
             new_model.fc = nn.Linear(num_ftrs, 10)
             
-            # Load the weights into this specific instance
-            state_dict = torch.load(local_path, map_location=torch.device('cpu'))
+            state_dict = torch.load(model_stream, map_location=torch.device('cpu'))
             new_model.load_state_dict(state_dict)
             
             # Prepare for inference
             new_model.eval()
             
             return new_model
-        
         except Exception as e:
-            print(f"Error loading model from {local_path}: {e}")
-            # Clean up the temp file if loading fails
-            if os.path.exists(local_path):
-                os.remove(local_path)
+            print(f"Error loading model from memory stream: {e}")
             raise
 
     def predict(self, image_bytes: bytes):
