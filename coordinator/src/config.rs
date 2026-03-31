@@ -6,6 +6,7 @@ pub struct AppConfig {
     pub grpc_inference_url: String,
     pub training_data_dir: String,
     pub training_data_bucket: Option<String>,
+    pub training_trigger_topic: Option<String>,
 }
 
 impl AppConfig {
@@ -15,6 +16,7 @@ impl AppConfig {
             grpc_inference_url: read_env("GRPC_INFERENCE_URL", "http://127.0.0.1:50051"),
             training_data_dir: read_env("TRAINING_DATA_DIR", "training-data"),
             training_data_bucket: read_optional_env("TRAINING_DATA_BUCKET"),
+            training_trigger_topic: read_optional_env("TRAINING_TRIGGER_TOPIC"),
         }
     }
 }

@@ -1,7 +1,9 @@
 use actix_multipart::Multipart;
 use actix_web::{get, post, web, HttpResponse, Responder};
+use base64::Engine;
 use futures_util::StreamExt;
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
+use serde_json::json;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -17,6 +19,7 @@ pub struct AppState {
     pub grpc_inference_url: String,
     pub training_data_dir: String,
     pub training_data_bucket: Option<String>,
+    pub training_trigger_topic: Option<String>,
 }
 
 impl AppState {
@@ -31,6 +34,9 @@ impl AppState {
             // Flow 2c:
             // Save the shared Cloud Storage bucket used for training samples when deployed.
             training_data_bucket: config.training_data_bucket.clone(),
+            // Flow 2d:
+            // Save the Pub/Sub topic used to wake the training service.
+            training_trigger_topic: config.training_trigger_topic.clone(),
         }
     }
 }
@@ -241,6 +247,20 @@ async fn handle_training_sample_upload(
         saved_path.display().to_string()
     };
 
+    if let Some(topic) = state.training_trigger_topic.as_deref() {
+        let publish_payload = json!({
+            "label": raw_label,
+            "saved_path": saved_path,
+            "bytes_written": image_bytes.len(),
+        });
+
+        if let Err(error) = publish_training_trigger(topic, publish_payload).await {
+            return HttpResponse::InternalServerError().json(ApiErrorResponse {
+                message: format!("training sample stored but failed to publish trigger: {error}"),
+            });
+        }
+    }
+
     HttpResponse::Ok().json(TrainingSampleResponse {
         label: raw_label,
         saved_path,
@@ -349,4 +369,36 @@ async fn fetch_metadata_access_token(client: &reqwest::Client) -> Result<String,
 
     let token: MetadataTokenResponse = response.json().await.map_err(|error| error.to_string())?;
     Ok(token.access_token)
+}
+
+async fn publish_training_trigger(
+    topic: &str,
+    payload: serde_json::Value,
+) -> Result<(), String> {
+    let client = reqwest::Client::new();
+    let token = fetch_metadata_access_token(&client).await?;
+    let encoded_payload = base64::engine::general_purpose::STANDARD.encode(payload.to_string());
+
+    let publish_url = format!("https://pubsub.googleapis.com/v1/{topic}:publish");
+    let response = client
+        .post(publish_url)
+        .header(AUTHORIZATION, format!("Bearer {token}"))
+        .json(&json!({
+            "messages": [
+                {
+                    "data": encoded_payload,
+                }
+            ]
+        }))
+        .send()
+        .await
+        .map_err(|error| error.to_string())?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        return Err(format!("publish failed with status {status}: {body}"));
+    }
+
+    Ok(())
 }

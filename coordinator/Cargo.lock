@@ -1312,6 +1312,7 @@ dependencies = [
  "actix-cors",
  "actix-multipart",
  "actix-web",
+ "base64",
  "futures-util",
  "prost",
  "reqwest",
