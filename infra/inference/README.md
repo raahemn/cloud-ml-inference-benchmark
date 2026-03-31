@@ -33,6 +33,7 @@ infra/inference/hybrid
 - Load balancer reserved for coordinator ingress
 - Coordinator on GKE
 - gRPC model service on GKE
+- Shared training bucket and Pub/Sub trigger infra provisioned alongside the cluster
 
 Path:
 
