@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coordinator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: coordinator
+  template:
+    metadata:
+      labels:
+        app: coordinator
+    spec:
+      serviceAccountName: coordinator-ksa
+      containers:
+        - name: coordinator
+          image: __ARTIFACT_REGISTRY_LOCATION__-docker.pkg.dev/__PROJECT_ID__/__ARTIFACT_REPOSITORY__/coordinator:latest
+          imagePullPolicy: Always
+          env:
+            - name: COORDINATOR_BIND
+              value: 0.0.0.0:8080
+            - name: GRPC_INFERENCE_URL
+              value: http://grpc-model:50051
+            - name: TRAINING_DATA_BUCKET
+              value: __TRAINING_BUCKET_NAME__
+            - name: TRAINING_TRIGGER_TOPIC
+              value: __TRAINING_TRIGGER_TOPIC_ID__
+          ports:
+            - containerPort: 8080
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: coordinator
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'
+    cloud.google.com/backend-config: '{"default": "coordinator-backendconfig"}'
+spec:
+  selector:
+    app: coordinator
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+  type: NodePort

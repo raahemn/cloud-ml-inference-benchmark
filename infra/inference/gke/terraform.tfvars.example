@@ -1,3 +1,4 @@
 project_id                 = "my-gcp-project"
 region                     = "northamerica-northeast1"
 artifact_registry_location = "northamerica-northeast1"
+model_bucket_name          = "cmpt756-resnet-models"

@@ -1,0 +1,13 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: coordinator-ingress
+  annotations:
+    kubernetes.io/ingress.class: gce
+    kubernetes.io/ingress.global-static-ip-name: inference-gke-lb-ip
+spec:
+  defaultBackend:
+    service:
+      name: coordinator
+      port:
+        number: 80
