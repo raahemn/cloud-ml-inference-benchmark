@@ -1,0 +1,198 @@
+# Hybrid inference pipeline
+# This pipeline deploys a split architecture:
+# - coordinator on Cloud Run
+# - training-service on Cloud Run
+# - grpc-model on GKE
+
+substitutions:
+  _REGION: northamerica-northeast1
+  _ARTIFACT_REGISTRY_LOCATION: northamerica-northeast1
+  _ARTIFACT_REPOSITORY: inference-hybrid-images
+  _TF_DIR: infra/inference/hybrid
+  _TF_STATE_BUCKET: inference-hybrid-tfstate-254882982092
+  _TF_STATE_PREFIX: infra/inference/hybrid
+  _MODEL_BUCKET_NAME: cmpt756-resnet-models
+  _TRAINING_THRESHOLD: "100"
+  _CLUSTER_NAME: inference-gke-cluster
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    id: build-coordinator-image
+    args:
+      - build
+      - -t
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:${BUILD_ID}
+      - -t
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:latest
+      - ./coordinator
+
+  - name: gcr.io/cloud-builders/docker
+    id: push-coordinator-image-sha
+    args:
+      - push
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:${BUILD_ID}
+
+  - name: gcr.io/cloud-builders/docker
+    id: push-coordinator-image-latest
+    args:
+      - push
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:latest
+
+  - name: gcr.io/cloud-builders/docker
+    id: build-grpc-model-image
+    args:
+      - build
+      - -t
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:${BUILD_ID}
+      - -t
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:latest
+      - ./ml-grpc-service
+
+  - name: gcr.io/cloud-builders/docker
+    id: push-grpc-model-image-sha
+    args:
+      - push
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:${BUILD_ID}
+
+  - name: gcr.io/cloud-builders/docker
+    id: push-grpc-model-image-latest
+    args:
+      - push
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:latest
+
+  - name: gcr.io/cloud-builders/docker
+    id: build-training-service-image
+    args:
+      - build
+      - -t
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/training-service:${BUILD_ID}
+      - -t
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/training-service:latest
+      - ./training-service
+
+  - name: gcr.io/cloud-builders/docker
+    id: push-training-service-image-sha
+    args:
+      - push
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/training-service:${BUILD_ID}
+
+  - name: gcr.io/cloud-builders/docker
+    id: push-training-service-image-latest
+    args:
+      - push
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/training-service:latest
+
+  - name: hashicorp/terraform:1.7.5
+    id: terraform-init
+    dir: ${_TF_DIR}
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        terraform init \
+          -backend-config="bucket=${_TF_STATE_BUCKET}" \
+          -backend-config="prefix=${_TF_STATE_PREFIX}"
+
+  # Provision the shared infra and the GKE cluster first.
+  - name: hashicorp/terraform:1.7.5
+    id: terraform-foundation
+    dir: ${_TF_DIR}
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        terraform apply -auto-approve \
+          -target=module.common \
+          -target=google_service_account_iam_member.grpc_model_workload_identity \
+          -target=google_storage_bucket_iam_member.grpc_model_bucket_reader \
+          -var="project_id=$PROJECT_ID" \
+          -var="region=${_REGION}" \
+          -var="artifact_registry_location=${_ARTIFACT_REGISTRY_LOCATION}" \
+          -var="coordinator_image=${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:${BUILD_ID}" \
+          -var="grpc_model_image=${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:${BUILD_ID}" \
+          -var="training_service_image=${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/training-service:${BUILD_ID}" \
+          -var="gke_grpc_endpoint=http://placeholder.invalid:50051" \
+          -var="model_bucket_name=${_MODEL_BUCKET_NAME}" \
+          -var="create_grpc_cluster=false" \
+          -var="existing_gke_cluster_name=${_CLUSTER_NAME}" \
+          -var="existing_gke_cluster_region=${_REGION}" \
+          -var="training_threshold=${_TRAINING_THRESHOLD}"
+
+  - name: hashicorp/terraform:1.7.5
+    id: render-gke-manifests
+    dir: ${_TF_DIR}
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        mkdir -p /workspace/.rendered-hybrid
+
+        for manifest in k8s/*.yaml; do
+          target="/workspace/.rendered-hybrid/$(basename "$manifest")"
+          sed \
+            -e "s|__PROJECT_ID__|$PROJECT_ID|g" \
+            -e "s|__ARTIFACT_REGISTRY_LOCATION__|${_ARTIFACT_REGISTRY_LOCATION}|g" \
+            -e "s|__ARTIFACT_REPOSITORY__|${_ARTIFACT_REPOSITORY}|g" \
+            "$manifest" > "$target"
+        done
+
+  - name: gcr.io/cloud-builders/kubectl
+    id: kubectl-apply
+    args:
+      - apply
+      - -f
+      - /workspace/.rendered-hybrid
+    env:
+      - CLOUDSDK_COMPUTE_REGION=${_REGION}
+      - CLOUDSDK_CONTAINER_CLUSTER=${_CLUSTER_NAME}
+
+  - name: gcr.io/cloud-builders/kubectl
+    id: detect-grpc-endpoint
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        for i in $(seq 1 60); do
+          grpc_ip="$(kubectl get svc hybrid-grpc-model-public -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
+          if [ -n "$grpc_ip" ]; then
+            echo "http://$grpc_ip:50051" > /workspace/grpc-endpoint.txt
+            exit 0
+          fi
+          sleep 10
+        done
+        echo "Timed out waiting for grpc-model-public external IP" >&2
+        exit 1
+    env:
+      - CLOUDSDK_COMPUTE_REGION=${_REGION}
+      - CLOUDSDK_CONTAINER_CLUSTER=${_CLUSTER_NAME}
+
+  - name: hashicorp/terraform:1.7.5
+    id: terraform-apply
+    dir: ${_TF_DIR}
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        grpc_endpoint="$(cat /workspace/grpc-endpoint.txt)"
+
+        terraform apply -auto-approve \
+          -var="project_id=$PROJECT_ID" \
+          -var="region=${_REGION}" \
+          -var="artifact_registry_location=${_ARTIFACT_REGISTRY_LOCATION}" \
+          -var="coordinator_image=${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:${BUILD_ID}" \
+          -var="grpc_model_image=${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:${BUILD_ID}" \
+          -var="training_service_image=${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/training-service:${BUILD_ID}" \
+          -var="gke_grpc_endpoint=${grpc_endpoint}" \
+          -var="model_bucket_name=${_MODEL_BUCKET_NAME}" \
+          -var="create_grpc_cluster=false" \
+          -var="existing_gke_cluster_name=${_CLUSTER_NAME}" \
+          -var="existing_gke_cluster_region=${_REGION}" \
+          -var="training_threshold=${_TRAINING_THRESHOLD}"
+
+images:
+  - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:${BUILD_ID}
+  - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:latest
+  - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:${BUILD_ID}
+  - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:latest
+  - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/training-service:${BUILD_ID}
+  - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/training-service:latest
