@@ -4,6 +4,7 @@ locals {
   required_services = [
     "artifactregistry.googleapis.com",
     "cloudbuild.googleapis.com",
+    "cloudtrace.googleapis.com",
     "compute.googleapis.com",
     "container.googleapis.com",
     "iam.googleapis.com",
