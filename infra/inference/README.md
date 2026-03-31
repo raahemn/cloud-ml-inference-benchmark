@@ -45,6 +45,7 @@ infra/inference/gke
 - Load balancer in front of coordinator
 - Coordinator on Cloud Run
 - gRPC model service on Cloud Run
+- Training service on Cloud Run with Pub/Sub trigger consumption
 
 Path:
 
@@ -55,7 +56,7 @@ infra/inference/cloudrun
 ## Shared modules
 
 - `modules/common`
-  APIs, Artifact Registry, service accounts, secrets, optional VPC/subnet
+  APIs, Artifact Registry, service accounts, secrets, Pub/Sub training trigger, shared training bucket, optional VPC/subnet
 - `modules/cloud_run_service`
   Small Cloud Run service wrapper
 - `modules/gke_service`

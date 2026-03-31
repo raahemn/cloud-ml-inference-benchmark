@@ -1,20 +1,30 @@
 resource "google_cloud_run_v2_service" "service" {
-  project  = var.project_id
-  name     = var.service_name
-  location = var.region
-  ingress  = var.ingress
+  project             = var.project_id
+  name                = var.service_name
+  location            = var.region
+  ingress             = var.ingress
   deletion_protection = false
 
   template {
-    service_account = var.service_account_email
+    service_account                  = var.service_account_email
+    max_instance_request_concurrency = var.max_instance_request_concurrency
+
+    scaling {
+      min_instance_count = var.min_instance_count
+      max_instance_count = var.max_instance_count
+    }
 
     containers {
       image = var.image
 
       resources {
-        limits = {
-          memory = var.memory_limit
-        }
+        cpu_idle = var.cpu_idle
+        limits   = merge(
+          {
+            memory = var.memory_limit
+          },
+          var.cpu_limit == null ? {} : { cpu = var.cpu_limit }
+        )
       }
 
       dynamic "env" {

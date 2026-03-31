@@ -4,8 +4,10 @@
 # 2. push coordinator image
 # 3. build gRPC model image
 # 4. push gRPC model image
-# 5. initialize Terraform
-# 6. apply Terraform for Cloud Run + load balancer resources
+# 5. build training service image
+# 6. push training service image
+# 7. initialize Terraform
+# 8. apply Terraform for Cloud Run + load balancer resources
 
 substitutions:
   # Region where Cloud Run services and Artifact Registry live.
@@ -18,6 +20,12 @@ substitutions:
   # Terraform directory for the Cloud Run inference variant.
   _TF_DIR: infra/inference/cloudrun
 
+  # Shared model bucket that the training service reads from and writes to.
+  _MODEL_BUCKET_NAME: cmpt756-resnet-models
+
+  # Minimum number of labeled samples required before training starts.
+  _TRAINING_THRESHOLD: "100"
+
 steps:
   # Step 1: Build the Rust coordinator image.
   - name: gcr.io/cloud-builders/docker
@@ -25,7 +33,7 @@ steps:
     args:
       - build
       - -t
-      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:${SHORT_SHA}
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:${BUILD_ID}
       - -t
       - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:latest
       - ./coordinator
@@ -35,7 +43,7 @@ steps:
     id: push-coordinator-image-sha
     args:
       - push
-      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:${SHORT_SHA}
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:${BUILD_ID}
 
   # Step 3: Push the rolling `latest` coordinator image.
   - name: gcr.io/cloud-builders/docker
@@ -50,7 +58,7 @@ steps:
     args:
       - build
       - -t
-      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:${SHORT_SHA}
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:${BUILD_ID}
       - -t
       - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:latest
       - ./ml-grpc-service
@@ -60,7 +68,7 @@ steps:
     id: push-grpc-model-image-sha
     args:
       - push
-      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:${SHORT_SHA}
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:${BUILD_ID}
 
   # Step 6: Push the rolling `latest` gRPC model image.
   - name: gcr.io/cloud-builders/docker
@@ -69,7 +77,32 @@ steps:
       - push
       - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:latest
 
-  # Step 7: Initialize Terraform in the Cloud Run inference directory.
+  # Step 7: Build the training service image.
+  - name: gcr.io/cloud-builders/docker
+    id: build-training-service-image
+    args:
+      - build
+      - -t
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/training-service:${BUILD_ID}
+      - -t
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/training-service:latest
+      - ./training-service
+
+  # Step 8: Push the immutable training service image for this commit.
+  - name: gcr.io/cloud-builders/docker
+    id: push-training-service-image-sha
+    args:
+      - push
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/training-service:${BUILD_ID}
+
+  # Step 9: Push the rolling `latest` training service image.
+  - name: gcr.io/cloud-builders/docker
+    id: push-training-service-image-latest
+    args:
+      - push
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/training-service:latest
+
+  # Step 10: Initialize Terraform in the Cloud Run inference directory.
   - name: hashicorp/terraform:1.7.5
     id: terraform-init
     dir: ${_TF_DIR}
@@ -78,10 +111,13 @@ steps:
       - -c
       - terraform init
 
-  # Step 8: Apply Terraform using the images built in this pipeline run.
+  # Step 11: Apply Terraform using the images built in this pipeline run.
   # This deploys:
   # - inference-cloudrun-coordinator
   # - inference-cloudrun-grpc-model
+  # - inference-cloudrun-training-service
+  # - shared Pub/Sub trigger resources for training
+  # - shared training bucket wiring used by coordinator and training service
   # - load balancer resources in front of the coordinator
   - name: hashicorp/terraform:1.7.5
     id: terraform-apply
@@ -94,12 +130,17 @@ steps:
           -var="project_id=$PROJECT_ID" \
           -var="region=${_REGION}" \
           -var="artifact_registry_location=${_ARTIFACT_REGISTRY_LOCATION}" \
-          -var="coordinator_image=${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:${SHORT_SHA}" \
-          -var="grpc_model_image=${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:${SHORT_SHA}"
+          -var="coordinator_image=${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:${BUILD_ID}" \
+          -var="grpc_model_image=${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:${BUILD_ID}" \
+          -var="training_service_image=${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/training-service:${BUILD_ID}" \
+          -var="model_bucket_name=${_MODEL_BUCKET_NAME}" \
+          -var="training_threshold=${_TRAINING_THRESHOLD}"
 
 # Images recorded as build outputs for this run.
 images:
-  - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:${SHORT_SHA}
+  - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:${BUILD_ID}
   - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:latest
-  - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:${SHORT_SHA}
+  - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:${BUILD_ID}
   - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:latest
+  - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/training-service:${BUILD_ID}
+  - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/training-service:latest

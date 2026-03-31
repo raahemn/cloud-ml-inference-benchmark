@@ -19,3 +19,17 @@ variable "coordinator_image" {
 variable "grpc_model_image" {
   type = string
 }
+
+variable "training_service_image" {
+  type = string
+}
+
+variable "model_bucket_name" {
+  type    = string
+  default = "cmpt756-resnet-models"
+}
+
+variable "training_threshold" {
+  type    = number
+  default = 100
+}

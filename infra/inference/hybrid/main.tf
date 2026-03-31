@@ -30,9 +30,10 @@ module "coordinator" {
   image                 = var.coordinator_image
   service_account_email = module.common.coordinator_service_account_email
   env_vars = {
-    COORDINATOR_BIND   = "0.0.0.0:8080"
-    GRPC_INFERENCE_URL = var.gke_grpc_endpoint
-    TRAINING_DATA_BUCKET = module.common.training_bucket_name
+    COORDINATOR_BIND      = "0.0.0.0:8080"
+    GRPC_INFERENCE_URL    = var.gke_grpc_endpoint
+    TRAINING_DATA_BUCKET  = module.common.training_bucket_name
+    TRAINING_TRIGGER_TOPIC = module.common.training_trigger_topic_id
   }
 }
 

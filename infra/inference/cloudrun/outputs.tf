@@ -10,6 +10,10 @@ output "grpc_model_service_url" {
   value = module.grpc_model.uri
 }
 
+output "training_service_url" {
+  value = module.training_service.uri
+}
+
 output "artifact_registry_repository" {
   value = module.common.artifact_registry_repository_id
 }

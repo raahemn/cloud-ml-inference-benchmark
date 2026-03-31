@@ -29,3 +29,8 @@ variable "training_bucket_location" {
   type    = string
   default = "northamerica-northeast1"
 }
+
+variable "model_bucket_name" {
+  type    = string
+  default = "cmpt756-resnet-models"
+}

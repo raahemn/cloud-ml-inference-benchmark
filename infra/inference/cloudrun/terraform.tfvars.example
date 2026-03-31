@@ -3,3 +3,6 @@ region                     = "northamerica-northeast1"
 artifact_registry_location = "northamerica-northeast1"
 coordinator_image          = "northamerica-northeast1-docker.pkg.dev/my-gcp-project/inference-cloudrun-images/coordinator:latest"
 grpc_model_image           = "northamerica-northeast1-docker.pkg.dev/my-gcp-project/inference-cloudrun-images/grpc-model:latest"
+training_service_image     = "northamerica-northeast1-docker.pkg.dev/my-gcp-project/inference-cloudrun-images/training-service:latest"
+model_bucket_name          = "cmpt756-resnet-models"
+training_threshold         = 100

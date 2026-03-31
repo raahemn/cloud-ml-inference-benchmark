@@ -37,3 +37,28 @@ variable "memory_limit" {
   type    = string
   default = "512Mi"
 }
+
+variable "cpu_limit" {
+  type    = string
+  default = null
+}
+
+variable "cpu_idle" {
+  type    = bool
+  default = true
+}
+
+variable "min_instance_count" {
+  type    = number
+  default = 0
+}
+
+variable "max_instance_count" {
+  type    = number
+  default = null
+}
+
+variable "max_instance_request_concurrency" {
+  type    = number
+  default = 80
+}
