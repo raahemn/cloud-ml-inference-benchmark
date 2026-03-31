@@ -75,7 +75,7 @@ class ResNetService:
         from hitting GCS at the exact same millisecond.
         """
         # Poll every 5 minutes by default
-        base_interval = 300 
+        base_interval = settings.INTERVAL
         
         print(f"Polling worker active. Interval: ~{base_interval}s")
         

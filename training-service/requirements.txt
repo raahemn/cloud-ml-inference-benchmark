@@ -1,0 +1,7 @@
+torch
+torchvision
+google-cloud-storage
+google-cloud-pubsub
+python-dotenv
+numpy<2
+pillow-avif-plugin

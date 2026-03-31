@@ -8,5 +8,6 @@ class Settings:
     PROJECT_NAME: str = "ResNet Inference Service"
     GCS_BUCKET: str = os.getenv("GCS_BUCKET", "cmpt756-resnet-models")
     PROJECT_ID: str = os.getenv("PROJECT_ID", "project-aa99c865-21ed-430c-aac")
+    INTERVAL: int = os.getenv("INTERVAL", 600)
 
 settings = Settings()
