@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hybrid-grpc-model
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hybrid-grpc-model
+  template:
+    metadata:
+      labels:
+        app: hybrid-grpc-model
+    spec:
+      serviceAccountName: hybrid-grpc-model-ksa
+      containers:
+        - name: grpc-model
+          image: __ARTIFACT_REGISTRY_LOCATION__-docker.pkg.dev/__PROJECT_ID__/__ARTIFACT_REPOSITORY__/grpc-model:latest
+          imagePullPolicy: Always
+          env:
+            - name: PORT
+              value: "50051"
+          ports:
+            - containerPort: 50051
+              name: grpc
+          readinessProbe:
+            tcpSocket:
+              port: 50051
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 50051
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "1"
+              memory: "1Gi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hybrid-grpc-model-public
+spec:
+  selector:
+    app: hybrid-grpc-model
+  ports:
+    - name: grpc
+      port: 50051
+      targetPort: 50051
+  type: LoadBalancer
