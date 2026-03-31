@@ -26,6 +26,10 @@ spec:
               value: __TRAINING_BUCKET_NAME__
             - name: TRAINING_TRIGGER_TOPIC
               value: __TRAINING_TRIGGER_TOPIC_ID__
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://opentelemetry-collector.opentelemetry.svc.cluster.local:4317
+            - name: OTEL_SERVICE_ENV
+              value: gke
           ports:
             - containerPort: 8080
               name: http

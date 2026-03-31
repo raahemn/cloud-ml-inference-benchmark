@@ -28,6 +28,18 @@ resource "google_compute_global_address" "lb_ip" {
   name    = "${module.common.prefix}-lb-ip"
 }
 
+resource "google_service_account" "trace_collector" {
+  project      = var.project_id
+  account_id   = "inference-gke-trace-sa"
+  display_name = "inference-gke trace collector"
+}
+
+resource "google_project_iam_member" "trace_collector_agent" {
+  project = var.project_id
+  role    = "roles/cloudtrace.agent"
+  member  = "serviceAccount:${google_service_account.trace_collector.email}"
+}
+
 resource "google_service_account_iam_member" "coordinator_workload_identity" {
   service_account_id = "projects/${var.project_id}/serviceAccounts/${module.common.coordinator_service_account_email}"
   role               = "roles/iam.workloadIdentityUser"
@@ -44,6 +56,12 @@ resource "google_service_account_iam_member" "training_workload_identity" {
   service_account_id = "projects/${var.project_id}/serviceAccounts/${module.common.training_service_account_email}"
   role               = "roles/iam.workloadIdentityUser"
   member             = "serviceAccount:${var.project_id}.svc.id.goog[default/training-service-ksa]"
+}
+
+resource "google_service_account_iam_member" "trace_collector_workload_identity" {
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${google_service_account.trace_collector.email}"
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[opentelemetry/opentelemetry-collector]"
 }
 
 resource "google_storage_bucket_iam_member" "grpc_model_bucket_reader" {

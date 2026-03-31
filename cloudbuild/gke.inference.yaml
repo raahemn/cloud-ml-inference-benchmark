@@ -152,16 +152,16 @@ steps:
         mkdir -p /workspace/.rendered-gke
 
         for manifest in k8s/*.yaml; do
-          target="/workspace/.rendered-gke/$(basename "$manifest")"
+          target="/workspace/.rendered-gke/$$(basename "$$manifest")"
           sed \
             -e "s|__PROJECT_ID__|$PROJECT_ID|g" \
             -e "s|__ARTIFACT_REGISTRY_LOCATION__|${_ARTIFACT_REGISTRY_LOCATION}|g" \
             -e "s|__ARTIFACT_REPOSITORY__|${_ARTIFACT_REPOSITORY}|g" \
-            -e "s|__TRAINING_BUCKET_NAME__|$TRAINING_BUCKET_NAME|g" \
+            -e "s|__TRAINING_BUCKET_NAME__|$$TRAINING_BUCKET_NAME|g" \
             -e "s|__MODEL_BUCKET_NAME__|${_MODEL_BUCKET_NAME}|g" \
-            -e "s|__TRAINING_TRIGGER_TOPIC_ID__|$TRAINING_TRIGGER_TOPIC_ID|g" \
-            -e "s|__TRAINING_TRIGGER_SUBSCRIPTION_NAME__|$TRAINING_TRIGGER_SUBSCRIPTION_NAME|g" \
-            "$manifest" > "$target"
+            -e "s|__TRAINING_TRIGGER_TOPIC_ID__|$$TRAINING_TRIGGER_TOPIC_ID|g" \
+            -e "s|__TRAINING_TRIGGER_SUBSCRIPTION_NAME__|$$TRAINING_TRIGGER_SUBSCRIPTION_NAME|g" \
+            "$$manifest" > "$$target"
         done
 
   # Step 13: Apply Kubernetes manifests to the GKE cluster.
