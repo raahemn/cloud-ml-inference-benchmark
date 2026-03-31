@@ -23,6 +23,10 @@ module "grpc_model" {
   cpu_limit             = "1"
   cpu_idle              = false
   max_instance_count    = 3
+  env_vars = {
+    OTEL_SERVICE_NAME = "cloudrun-grpc-model"
+    OTEL_SERVICE_ENV  = local.variant
+  }
 }
 
 module "coordinator" {
@@ -36,10 +40,12 @@ module "coordinator" {
   cpu_idle              = false
   max_instance_count    = 3
   env_vars = {
-    COORDINATOR_BIND      = "0.0.0.0:8080"
-    GRPC_INFERENCE_URL    = module.grpc_model.uri
-    TRAINING_DATA_BUCKET  = module.common.training_bucket_name
+    COORDINATOR_BIND       = "0.0.0.0:8080"
+    GRPC_INFERENCE_URL     = module.grpc_model.uri
+    TRAINING_DATA_BUCKET   = module.common.training_bucket_name
     TRAINING_TRIGGER_TOPIC = module.common.training_trigger_topic_id
+    OTEL_SERVICE_NAME      = "cloudrun-coordinator"
+    OTEL_SERVICE_ENV       = local.variant
   }
 }
 
@@ -58,11 +64,13 @@ module "training_service" {
   max_instance_count              = 1
   max_instance_request_concurrency = 1
   env_vars = {
-    PROJECT_ID         = var.project_id
-    DATA_BUCKET        = module.common.training_bucket_name
-    MODEL_BUCKET       = var.model_bucket_name
-    TRAINING_SUB       = module.common.training_trigger_subscription_name
-    TRAINING_THRESHOLD = tostring(var.training_threshold)
+    PROJECT_ID          = var.project_id
+    DATA_BUCKET         = module.common.training_bucket_name
+    MODEL_BUCKET        = var.model_bucket_name
+    TRAINING_SUB        = module.common.training_trigger_subscription_name
+    TRAINING_THRESHOLD  = tostring(var.training_threshold)
+    OTEL_SERVICE_NAME   = "cloudrun-training-service"
+    OTEL_SERVICE_ENV    = local.variant
   }
 }
 

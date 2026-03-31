@@ -22,6 +22,8 @@ spec:
               value: "50051"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: http://opentelemetry-collector.opentelemetry.svc.cluster.local:4317
+            - name: OTEL_SERVICE_NAME
+              value: gke-grpc-model
             - name: OTEL_SERVICE_ENV
               value: gke
           ports:
