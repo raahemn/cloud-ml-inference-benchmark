@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: training-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: training-service
+  template:
+    metadata:
+      labels:
+        app: training-service
+    spec:
+      serviceAccountName: training-service-ksa
+      containers:
+        - name: training-service
+          image: __ARTIFACT_REGISTRY_LOCATION__-docker.pkg.dev/__PROJECT_ID__/__ARTIFACT_REPOSITORY__/training-service:latest
+          imagePullPolicy: Always
+          env:
+            - name: PORT
+              value: "8080"
+            - name: PROJECT_ID
+              value: __PROJECT_ID__
+            - name: DATA_BUCKET
+              value: __TRAINING_BUCKET_NAME__
+            - name: MODEL_BUCKET
+              value: __MODEL_BUCKET_NAME__
+            - name: TRAINING_SUB
+              value: __TRAINING_TRIGGER_SUBSCRIPTION_NAME__
+            - name: TRAINING_THRESHOLD
+              value: "100"
+          ports:
+            - containerPort: 8080
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "1"
+              memory: "2Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: training-service
+spec:
+  selector:
+    app: training-service
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  type: ClusterIP

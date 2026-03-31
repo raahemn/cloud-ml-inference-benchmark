@@ -1,0 +1,184 @@
+# GKE inference pipeline
+# This pipeline mirrors the Terraform-managed GKE foundation deployment:
+# 1. build coordinator image
+# 2. push coordinator image
+# 3. build gRPC model image
+# 4. push gRPC model image
+# 5. build training service image
+# 6. push training service image
+# 7. initialize Terraform
+# 8. apply Terraform for the GKE foundation resources
+# 9. render Kubernetes manifests with project-specific values
+# 10. apply Kubernetes manifests to the GKE cluster
+#
+# Important:
+# The current Terraform in `infra/inference/gke` provisions the GKE foundation
+# stack only: shared resources, VPC/subnet, Autopilot cluster, and reserved IP.
+# It does not yet deploy Kubernetes workloads onto the cluster.
+
+substitutions:
+  # Region where the GKE cluster and Artifact Registry live.
+  _REGION: northamerica-northeast1
+  _ARTIFACT_REGISTRY_LOCATION: northamerica-northeast1
+
+  # Artifact Registry repository for GKE images.
+  _ARTIFACT_REPOSITORY: inference-gke-images
+
+  # Terraform directory for the GKE inference variant.
+  _TF_DIR: infra/inference/gke
+
+  # Remote Terraform state location for repeatable Cloud Build deploys.
+  _TF_STATE_BUCKET: inference-gke-tfstate-254882982092
+  _TF_STATE_PREFIX: infra/inference/gke
+
+  # Shared model bucket used by the training flow.
+  _MODEL_BUCKET_NAME: cmpt756-resnet-models
+  _CLUSTER_NAME: inference-gke-cluster
+
+steps:
+  # Step 1: Build the Rust coordinator image.
+  - name: gcr.io/cloud-builders/docker
+    id: build-coordinator-image
+    args:
+      - build
+      - -t
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:${BUILD_ID}
+      - -t
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:latest
+      - ./coordinator
+
+  # Step 2: Push the immutable coordinator image for this run.
+  - name: gcr.io/cloud-builders/docker
+    id: push-coordinator-image-sha
+    args:
+      - push
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:${BUILD_ID}
+
+  # Step 3: Push the rolling coordinator image.
+  - name: gcr.io/cloud-builders/docker
+    id: push-coordinator-image-latest
+    args:
+      - push
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:latest
+
+  # Step 4: Build the Python gRPC model image.
+  - name: gcr.io/cloud-builders/docker
+    id: build-grpc-model-image
+    args:
+      - build
+      - -t
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:${BUILD_ID}
+      - -t
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:latest
+      - ./ml-grpc-service
+
+  # Step 5: Push the immutable gRPC model image for this run.
+  - name: gcr.io/cloud-builders/docker
+    id: push-grpc-model-image-sha
+    args:
+      - push
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:${BUILD_ID}
+
+  # Step 6: Push the rolling gRPC model image.
+  - name: gcr.io/cloud-builders/docker
+    id: push-grpc-model-image-latest
+    args:
+      - push
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:latest
+
+  # Step 7: Build the training service image.
+  - name: gcr.io/cloud-builders/docker
+    id: build-training-service-image
+    args:
+      - build
+      - -t
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/training-service:${BUILD_ID}
+      - -t
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/training-service:latest
+      - ./training-service
+
+  # Step 8: Push the immutable training service image for this run.
+  - name: gcr.io/cloud-builders/docker
+    id: push-training-service-image-sha
+    args:
+      - push
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/training-service:${BUILD_ID}
+
+  # Step 9: Push the rolling training service image.
+  - name: gcr.io/cloud-builders/docker
+    id: push-training-service-image-latest
+    args:
+      - push
+      - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/training-service:latest
+
+  # Step 10: Initialize Terraform in the GKE inference directory.
+  - name: hashicorp/terraform:1.7.5
+    id: terraform-init
+    dir: ${_TF_DIR}
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        terraform init \
+          -backend-config="bucket=${_TF_STATE_BUCKET}" \
+          -backend-config="prefix=${_TF_STATE_PREFIX}"
+
+  # Step 11: Apply Terraform for the GKE foundation stack.
+  - name: hashicorp/terraform:1.7.5
+    id: terraform-apply
+    dir: ${_TF_DIR}
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        terraform apply -auto-approve \
+          -var="project_id=$PROJECT_ID" \
+          -var="region=${_REGION}" \
+          -var="artifact_registry_location=${_ARTIFACT_REGISTRY_LOCATION}" \
+          -var="model_bucket_name=${_MODEL_BUCKET_NAME}"
+
+  # Step 12: Extract Terraform outputs and render Kubernetes manifests.
+  - name: hashicorp/terraform:1.7.5
+    id: render-k8s-manifests
+    dir: ${_TF_DIR}
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        TRAINING_BUCKET_NAME="$(terraform output -raw training_bucket_name)"
+        TRAINING_TRIGGER_TOPIC_ID="$(terraform output -raw training_trigger_topic_id)"
+        TRAINING_TRIGGER_SUBSCRIPTION_NAME="$(terraform output -raw training_trigger_subscription_name)"
+
+        mkdir -p /workspace/.rendered-gke
+
+        for manifest in k8s/*.yaml; do
+          target="/workspace/.rendered-gke/$(basename "$manifest")"
+          sed \
+            -e "s|__PROJECT_ID__|$PROJECT_ID|g" \
+            -e "s|__ARTIFACT_REGISTRY_LOCATION__|${_ARTIFACT_REGISTRY_LOCATION}|g" \
+            -e "s|__ARTIFACT_REPOSITORY__|${_ARTIFACT_REPOSITORY}|g" \
+            -e "s|__TRAINING_BUCKET_NAME__|$TRAINING_BUCKET_NAME|g" \
+            -e "s|__MODEL_BUCKET_NAME__|${_MODEL_BUCKET_NAME}|g" \
+            -e "s|__TRAINING_TRIGGER_TOPIC_ID__|$TRAINING_TRIGGER_TOPIC_ID|g" \
+            -e "s|__TRAINING_TRIGGER_SUBSCRIPTION_NAME__|$TRAINING_TRIGGER_SUBSCRIPTION_NAME|g" \
+            "$manifest" > "$target"
+        done
+
+  # Step 13: Apply Kubernetes manifests to the GKE cluster.
+  - name: gcr.io/cloud-builders/kubectl
+    id: kubectl-apply
+    args:
+      - apply
+      - -f
+      - /workspace/.rendered-gke
+    env:
+      - CLOUDSDK_COMPUTE_REGION=${_REGION}
+      - CLOUDSDK_CONTAINER_CLUSTER=${_CLUSTER_NAME}
+
+images:
+  - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:${BUILD_ID}
+  - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/coordinator:latest
+  - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:${BUILD_ID}
+  - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/grpc-model:latest
+  - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/training-service:${BUILD_ID}
+  - ${_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/training-service:latest
