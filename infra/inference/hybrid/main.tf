@@ -42,6 +42,8 @@ module "coordinator" {
     GRPC_INFERENCE_URL     = var.gke_grpc_endpoint
     TRAINING_DATA_BUCKET   = module.common.training_bucket_name
     TRAINING_TRIGGER_TOPIC = module.common.training_trigger_topic_id
+    OTEL_SERVICE_NAME      = "hybrid-coordinator"
+    OTEL_SERVICE_ENV       = local.variant
   }
 }
 
@@ -65,6 +67,8 @@ module "training_service" {
     MODEL_BUCKET       = var.model_bucket_name
     TRAINING_SUB       = module.common.training_trigger_subscription_name
     TRAINING_THRESHOLD = tostring(var.training_threshold)
+    OTEL_SERVICE_NAME  = "hybrid-training-service"
+    OTEL_SERVICE_ENV   = local.variant
   }
 }
 

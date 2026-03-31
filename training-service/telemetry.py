@@ -12,9 +12,11 @@ def setup_telemetry(service_name: str):
     if not endpoint:
         return None
 
+    configured_service_name = os.getenv("OTEL_SERVICE_NAME", "").strip() or service_name
+
     resource = Resource.create(
         {
-            "service.name": service_name,
+            "service.name": configured_service_name,
             "deployment.environment": os.getenv("OTEL_SERVICE_ENV", "unknown"),
         }
     )

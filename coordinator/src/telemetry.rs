@@ -11,6 +11,7 @@ use tracing_subscriber::{fmt, EnvFilter, Registry};
 pub fn init(
     service_name: &str,
 ) -> Result<TelemetryGuard, Box<dyn std::error::Error + Send + Sync>> {
+    let service_name = configured_service_name(service_name);
     let env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("info,actix_web=info,tonic=info"));
 
@@ -28,7 +29,7 @@ pub fn init(
             .build()?;
 
         let resource = Resource::new([
-            KeyValue::new("service.name", service_name.to_string()),
+            KeyValue::new("service.name", service_name.clone()),
             KeyValue::new("service.version", env!("CARGO_PKG_VERSION").to_string()),
             KeyValue::new("deployment.environment", deployment_environment()),
         ]);
@@ -38,7 +39,7 @@ pub fn init(
             .with_resource(resource)
             .build();
 
-        let tracer = provider.tracer(service_name.to_string());
+        let tracer = provider.tracer(service_name);
         global::set_tracer_provider(provider.clone());
 
         let telemetry_layer = tracing_opentelemetry::layer().with_tracer(tracer);
@@ -60,6 +61,14 @@ pub fn init(
             tracer_provider: None,
         })
     }
+}
+
+fn configured_service_name(default_name: &str) -> String {
+    std::env::var("OTEL_SERVICE_NAME")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| default_name.to_string())
 }
 
 fn deployment_environment() -> Value {
