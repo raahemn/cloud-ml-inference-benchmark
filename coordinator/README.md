@@ -58,3 +58,19 @@ curl -X POST http://127.0.0.1:8000/predict \
 ```bash
 curl http://127.0.0.1:8000/health
 ```
+
+## Cloud Trace
+
+The coordinator now emits request spans for inbound HTTP requests, the outbound
+gRPC inference call, training-sample uploads, and Pub/Sub trigger publishing.
+
+To export those spans to an OpenTelemetry Collector or directly to Cloud Trace,
+set:
+
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://YOUR_COLLECTOR_HOST:4317
+export OTEL_SERVICE_ENV=gke
+```
+
+If `OTEL_EXPORTER_OTLP_ENDPOINT` is not set, the coordinator still starts
+normally and keeps structured request logs enabled.
