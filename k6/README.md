@@ -26,6 +26,8 @@ For those, use Google Cloud Monitoring and Billing data alongside these scripts.
 
 - `predict-load.js`
   Tests `POST /predict`
+- `predict-baseline.js`
+  Tests `POST /predict` with low traffic only
 - `training-load.js`
   Tests `POST /training`
 
@@ -85,6 +87,17 @@ k6 run \
   -e BASE_URL=http://34.49.30.185 \
   -e IMAGE_PATH=/full/path/to/test-image.jpg \
   k6/predict-load.js
+```
+
+## 1a. Run a Baseline Low-Traffic Comparison
+
+Use this when you want to isolate the effect of spike/burst behavior.
+
+```bash
+k6 run \
+  -e BASE_URL=http://34.49.30.185 \
+  -e IMAGE_PATH=/full/path/to/test-image.jpg \
+  k6/predict-baseline.js
 ```
 
 ## 2. Test /training
@@ -150,6 +163,7 @@ This means in Grafana Cloud k6 you can compare things like:
 - `/predict` vs `/training`
 - low traffic vs bursty traffic
 - short inference vs long inference
+- baseline low traffic vs spiky traffic
 
 ## Example Run for Grafana Comparison
 
@@ -179,6 +193,18 @@ k6 run \
   -e IMAGE_KIND=small-image \
   k6/training-load.js
 ```
+
+## Note About Sleep and Arrival-Rate Scenarios
+
+The stress script now keeps `sleep(1)` only for the low-traffic pacing path.
+
+For the arrival-rate phases:
+
+- `steady_traffic`
+- `bursty_traffic`
+- `spiky_traffic`
+
+there is no artificial sleep anymore, so the generated load better matches the intended request rate.
 
 ## What to Look At in the Output
 
