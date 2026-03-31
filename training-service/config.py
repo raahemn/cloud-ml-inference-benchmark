@@ -1,6 +1,7 @@
 import os
 
 class Settings:
+    PORT = int(os.getenv("PORT", "8080"))
     PROJECT_ID = os.getenv("PROJECT_ID", "project-aa99c865-21ed-430c-aac")
     DATA_BUCKET = os.getenv("DATA_BUCKET", "inference-cloudrun-training-data")
     MODEL_BUCKET = os.getenv("MODEL_BUCKET", "cmpt756-resnet-models")

@@ -1,5 +1,6 @@
 import uuid
 import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from google.cloud import pubsub_v1
 from config import settings
 from utils import gcs
@@ -46,7 +47,7 @@ def callback(message):
     message.ack()
     train_cycle()
 
-if __name__ == "__main__":
+def run_subscriber():
     subscriber = pubsub_v1.SubscriberClient()
     sub_path = subscriber.subscription_path(settings.PROJECT_ID, settings.TRAINING_SUB)
     
@@ -57,3 +58,28 @@ if __name__ == "__main__":
         future.result()
     except KeyboardInterrupt:
         future.cancel()
+
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/health":
+            body = b'{"service":"training-service","status":"ok"}'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        self.send_response(404)
+        self.end_headers()
+
+    def log_message(self, format, *args):
+        return
+
+if __name__ == "__main__":
+    subscriber_thread = threading.Thread(target=run_subscriber, daemon=True)
+    subscriber_thread.start()
+
+    server = ThreadingHTTPServer(("0.0.0.0", settings.PORT), HealthHandler)
+    print(f"Training Service health endpoint listening on port {settings.PORT}...")
+    server.serve_forever()
