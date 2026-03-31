@@ -20,6 +20,10 @@ substitutions:
   # Terraform directory for the Cloud Run inference variant.
   _TF_DIR: infra/inference/cloudrun
 
+  # Remote Terraform state location for repeatable Cloud Build deploys.
+  _TF_STATE_BUCKET: inference-cloudrun-tfstate-254882982092
+  _TF_STATE_PREFIX: infra/inference/cloudrun
+
   # Shared model bucket that the training service reads from and writes to.
   _MODEL_BUCKET_NAME: cmpt756-resnet-models
 
@@ -109,7 +113,10 @@ steps:
     entrypoint: sh
     args:
       - -c
-      - terraform init
+      - |
+        terraform init \
+          -backend-config="bucket=${_TF_STATE_BUCKET}" \
+          -backend-config="prefix=${_TF_STATE_PREFIX}"
 
   # Step 11: Apply Terraform using the images built in this pipeline run.
   # This deploys:
