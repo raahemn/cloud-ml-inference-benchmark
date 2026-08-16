@@ -101,3 +101,20 @@ npm install
 # Run the frontend
 npm run dev
 ```
+
+### Presentation
+
+<img width="1469" height="827" alt="image" src="https://github.com/user-attachments/assets/3531909f-6147-4156-bdb1-b9acf9d81305" />
+
+<img width="1469" height="827" alt="image" src="https://github.com/user-attachments/assets/78a3543b-c3fa-4012-8b2b-3af415bf3990" />
+
+<img width="1469" height="827" alt="image" src="https://github.com/user-attachments/assets/77f2b5d6-a38e-40da-9ca4-a98323abb5a5" />
+
+<img width="1469" height="827" alt="image" src="https://github.com/user-attachments/assets/9cce8bbd-61df-483f-9d13-1d60c8e84543" />
+
+
+
+
+
+
+
